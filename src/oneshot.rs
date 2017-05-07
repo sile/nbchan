@@ -4,49 +4,40 @@ pub use std::sync::mpsc::{SendError, TryRecvError};
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-static MARK_DROPPED: &u8 = &0;
-
-#[inline]
-fn mark_dropped<T>() -> *mut T {
-    MARK_DROPPED as *const _ as _
-}
-
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
-    let shared = Box::into_raw(Box::new(AtomicPtr::default()));
-    let tx = Sender(shared);
-    let rx = Receiver(shared);
+    let (shared0, shared1) = SharedBox::allocate();
+    let tx = Sender(shared0);
+    let rx = Receiver(shared1);
     (tx, rx)
 }
 
 #[derive(Debug)]
-pub struct Sender<T>(*mut AtomicPtr<T>);
+pub struct Sender<T>(SharedBox<T>);
 impl<T> Sender<T> {
     pub fn send(mut self, t: T) -> Result<(), SendError<T>> {
-        let shared = unsafe { &*self.0 };
-        let new = Box::into_raw(Box::new(t));
-        let old = shared.swap(new, Ordering::SeqCst);
-        if old == ptr::null_mut() {
+        let new = into_raw_ptr(t);
+        let old = self.0.swap(new);
+        if old == mark_empty() {
             // Secceeded.
-            self.0 = ptr::null_mut();
+            self.0.abandon();
             Ok(())
         } else {
-            // The receiver already has dropped.
-            let t = unsafe { *Box::from_raw(shared.load(Ordering::SeqCst)) };
-            let _ = unsafe { Box::from_raw(self.0) };
-            self.0 = ptr::null_mut();
+            // Failed; the receiver already has dropped.
+            debug_assert_eq!(old, mark_dropped());
+            let t = from_raw_ptr(self.0.load());
+            self.0.release();
             Err(SendError(t))
         }
     }
 }
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
-        if self.0 != ptr::null_mut() {
-            // No item has been sent.
-            let shared = unsafe { &*self.0 };
-            let old = shared.swap(mark_dropped(), Ordering::SeqCst);
+        if self.0.is_available() {
+            // This channel has not been used.
+            let old = self.0.swap(mark_dropped());
             if old == mark_dropped() {
-                // The receiver already has dropped.
-                let _ = unsafe { Box::from_raw(self.0) };
+                // The peer (i.e., receiver) dropped first.
+                self.0.release();
             }
         }
     }
@@ -54,47 +45,103 @@ impl<T> Drop for Sender<T> {
 unsafe impl<T: Send> Send for Sender<T> {}
 
 #[derive(Debug)]
-pub struct Receiver<T>(*mut AtomicPtr<T>);
+pub struct Receiver<T>(SharedBox<T>);
 impl<T> Receiver<T> {
     pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
-        if self.0 == ptr::null_mut() {
+        if !self.0.is_available() {
             return Err(TryRecvError::Disconnected);
         }
 
-        let shared = unsafe { &*self.0 };
-        let ptr = shared.load(Ordering::SeqCst);
-        if ptr == ptr::null_mut() {
+        let ptr = self.0.load();
+        if ptr == mark_empty() {
             Err(TryRecvError::Empty)
         } else if ptr == mark_dropped() {
-            let _ = unsafe { Box::from_raw(self.0) };
-            self.0 = ptr::null_mut();
+            self.0.release();
             Err(TryRecvError::Disconnected)
         } else {
-            let t = unsafe { *Box::from_raw(ptr) };
-            let _ = unsafe { Box::from_raw(self.0) };
-            self.0 = ptr::null_mut();
+            let t = from_raw_ptr(ptr);
+            self.0.release();
             Ok(t)
         }
     }
 }
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
-        if self.0 != ptr::null_mut() {
-            // No item has been received.
-            let shared = unsafe { &*self.0 };
-            let old = shared.swap(mark_dropped(), Ordering::SeqCst);
-            if old != ptr::null_mut() {
-                // The sender already has dropped.
+        if self.0.is_available() {
+            let old = self.0.swap(mark_dropped());
+            if old != mark_empty() {
+                // The peer (i.e., sender) dropped first.
                 if old != mark_dropped() {
-                    // Frees unreceived item.
-                    let _t = unsafe { *Box::from_raw(old) };
+                    // The channel has an unreceived item.
+                    let _t = from_raw_ptr(old);
                 }
-                let _ = unsafe { Box::from_raw(self.0) };
+                self.0.release();
             }
         }
     }
 }
 unsafe impl<T: Send> Send for Receiver<T> {}
+
+#[derive(Debug, Clone)]
+struct SharedBox<T>(*mut AtomicPtr<T>);
+impl<T> SharedBox<T> {
+    #[inline]
+    pub fn allocate() -> (Self, Self) {
+        let ptr = into_raw_ptr(AtomicPtr::default());
+        (SharedBox(ptr), SharedBox(ptr))
+    }
+
+    #[inline]
+    pub fn release(&mut self) {
+        debug_assert_ne!(self.0, ptr::null_mut());
+        let _ = from_raw_ptr(self.0);
+        self.0 = ptr::null_mut();
+    }
+
+    #[inline]
+    pub fn abandon(&mut self) {
+        debug_assert_ne!(self.0, ptr::null_mut());
+        self.0 = ptr::null_mut();
+    }
+
+    #[inline]
+    pub fn is_available(&self) -> bool {
+        self.0 != ptr::null_mut()
+    }
+
+    #[inline]
+    pub fn swap(&self, value: *mut T) -> *mut T {
+        debug_assert_ne!(self.0, ptr::null_mut());
+        unsafe { &*self.0 }.swap(value, Ordering::SeqCst)
+    }
+
+    #[inline]
+    pub fn load(&self) -> *mut T {
+        unsafe { &*self.0 }.load(Ordering::SeqCst)
+    }
+}
+unsafe impl<T: Send> Send for SharedBox<T> {}
+
+#[inline]
+fn mark_dropped<T>() -> *mut T {
+    static MARK_DROPPED: &u8 = &0;
+    MARK_DROPPED as *const _ as _
+}
+
+#[inline]
+fn mark_empty<T>() -> *mut T {
+    ptr::null_mut()
+}
+
+#[inline]
+fn into_raw_ptr<T>(t: T) -> *mut T {
+    Box::into_raw(Box::new(t))
+}
+
+#[inline]
+fn from_raw_ptr<T>(ptr: *mut T) -> T {
+    unsafe { *Box::from_raw(ptr) }
+}
 
 #[cfg(test)]
 mod test {
@@ -128,5 +175,10 @@ mod test {
         assert_eq!(rx.try_recv(), Err(TryRecvError::Empty));
         mem::drop(tx);
         assert_eq!(rx.try_recv(), Err(TryRecvError::Disconnected));
+    }
+
+    #[test]
+    fn unused() {
+        channel::<()>();
     }
 }
