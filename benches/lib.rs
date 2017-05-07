@@ -5,6 +5,7 @@ extern crate nbchan;
 
 use std::sync::mpsc as std_mpsc;
 use std::thread;
+use std::time::Duration;
 use nbchan::oneshot::{self, TryRecvError};
 use test::Bencher;
 
@@ -54,38 +55,68 @@ fn send_recv_std_mpsc(b: &mut Bencher) {
 
 #[bench]
 fn multithread_send_recv_oneshot(b: &mut Bencher) {
-    let spawn_tx_tread = || {
-        let (mut txs, rxs): (Vec<_>, Vec<_>) = (0..1_000_000).map(|_| oneshot::channel()).unzip();
-        let _ = thread::spawn(move || while let Some(tx) = txs.pop() {
-                                  let _ = tx.send(1);
-                              });
-        rxs
-    };
-    let mut rxs = spawn_tx_tread();
-    b.iter(|| if let Some(mut rx) = rxs.pop() {
+    let (txs_tx, txs_rx) = std_mpsc::sync_channel(2);
+    let (rxs_tx, rxs_rx) = std_mpsc::sync_channel(2);
+    let _ = thread::spawn(move || loop {
+                              let (txs, rxs): (Vec<_>, Vec<_>) =
+                                  (0..100_000).map(|_| oneshot::channel()).unzip();
+                              if txs_tx.send(txs).is_err() {
+                                  break;
+                              }
+                              if rxs_tx.send(rxs).is_err() {
+                                  break;
+                              }
+                          });
+    let _ = thread::spawn(move || while let Ok(mut txs) = txs_rx.recv() {
+                              while let Some(tx) = txs.pop() {
+                                  if tx.send(1).is_err() {
+                                      return;
+                                  }
+                              }
+                          });
+    thread::sleep(Duration::from_millis(10));
+
+    let mut rxs = Vec::new();
+    b.iter(|| if let Some(rx) = rxs.pop() {
+               let mut rx: oneshot::Receiver<usize> = rx;
                while let Err(e) = rx.try_recv() {
                    assert_eq!(e, TryRecvError::Empty);
                }
            } else {
-               rxs = spawn_tx_tread();
+               rxs = rxs_rx.recv().unwrap();
            });
 }
 
 #[bench]
 fn multithread_send_recv_std_mpsc(b: &mut Bencher) {
-    let spawn_tx_tread = || {
-        let (mut txs, rxs): (Vec<_>, Vec<_>) = (0..1_000_000).map(|_| std_mpsc::channel()).unzip();
-        let _ = thread::spawn(move || while let Some(tx) = txs.pop() {
-                                  let _ = tx.send(1);
-                              });
-        rxs
-    };
-    let mut rxs = spawn_tx_tread();
+    let (txs_tx, txs_rx) = std_mpsc::sync_channel(2);
+    let (rxs_tx, rxs_rx) = std_mpsc::sync_channel(2);
+    let _ = thread::spawn(move || loop {
+                              let (txs, rxs): (Vec<_>, Vec<_>) =
+                                  (0..100_000).map(|_| std_mpsc::channel()).unzip();
+                              if txs_tx.send(txs).is_err() {
+                                  break;
+                              }
+                              if rxs_tx.send(rxs).is_err() {
+                                  break;
+                              }
+                          });
+    let _ = thread::spawn(move || while let Ok(mut txs) = txs_rx.recv() {
+                              while let Some(tx) = txs.pop() {
+                                  if tx.send(1).is_err() {
+                                      return;
+                                  }
+                              }
+                          });
+    thread::sleep(Duration::from_millis(10));
+
+    let mut rxs = Vec::new();
     b.iter(|| if let Some(rx) = rxs.pop() {
+               let rx: std_mpsc::Receiver<usize> = rx;
                while let Err(e) = rx.try_recv() {
                    assert_eq!(e, TryRecvError::Empty);
                }
            } else {
-               rxs = spawn_tx_tread();
+               rxs = rxs_rx.recv().unwrap();
            });
 }
