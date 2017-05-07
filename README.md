@@ -1,6 +1,15 @@
 nbchan
 ======
 
+[![Crates.io: nbchan](http://meritbadge.herokuapp.com/nbchan)](https://crates.io/crates/nbchan)
+[![Build Status](https://travis-ci.org/sile/nbchan.svg?branch=master)](https://travis-ci.org/sile/nbchan)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Highly optimized non-blocking communication channels implemented in Rust.
+
+[Documentation](https://docs.rs/nbchan)
+
+
 Informal Benchmarks
 --------------------
 
