@@ -10,7 +10,7 @@ use nbchan::oneshot::{self, TryRecvError};
 use test::Bencher;
 
 #[bench]
-fn create_oneshot(b: &mut Bencher) {
+fn create_nbchan_oneshot(b: &mut Bencher) {
     b.iter(|| { oneshot::channel::<()>(); });
 }
 
@@ -20,7 +20,7 @@ fn create_std_mpsc(b: &mut Bencher) {
 }
 
 #[bench]
-fn failure_send_oneshot(b: &mut Bencher) {
+fn failure_send_nbchan_oneshot(b: &mut Bencher) {
     b.iter(|| {
                let (tx, _) = oneshot::channel();
                let _ = tx.send(1);
@@ -36,7 +36,7 @@ fn failure_send_std_mpsc(b: &mut Bencher) {
 }
 
 #[bench]
-fn send_recv_oneshot(b: &mut Bencher) {
+fn send_recv_nbchan_oneshot(b: &mut Bencher) {
     b.iter(|| {
                let (tx, mut rx) = oneshot::channel();
                tx.send(1).unwrap();
@@ -54,7 +54,7 @@ fn send_recv_std_mpsc(b: &mut Bencher) {
 }
 
 #[bench]
-fn multithread_send_recv_oneshot(b: &mut Bencher) {
+fn multithread_send_recv_nbchan_oneshot(b: &mut Bencher) {
     let (txs_tx, txs_rx) = std_mpsc::sync_channel(2);
     let (rxs_tx, rxs_rx) = std_mpsc::sync_channel(2);
     let _ = thread::spawn(move || loop {
