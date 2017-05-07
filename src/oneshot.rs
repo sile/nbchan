@@ -1,9 +1,67 @@
+//! Oneshot channel.
+//!
+//! The sender of a oneshot channel can send at most one message to the corresponding receiver.
+//!
+//! # Examples
+//!
+//! ```
+//! use std::thread;
+//! use nbchan::oneshot::{self, TryRecvError};
+//!
+//! let (tx, mut rx) = oneshot::channel();
+//!
+//! // Sender
+//! thread::spawn(|| { tx.send(10).unwrap(); });
+//!
+//! // Receiver
+//! loop {
+//!     match rx.try_recv() {
+//!         Ok(v) => {
+//!             assert_eq!(v, 10);
+//!             break;
+//!         }
+//!         Err(e) => {
+//!             assert_eq!(e, TryRecvError::Empty);
+//!         }
+//!     }
+//!  }
+//! ```
 #[doc(no_inline)]
 pub use std::sync::mpsc::{SendError, TryRecvError};
 
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
+/// Creates a new asynchronous oneshot channel, returning the sender/receiver halves.
+///
+/// Both sending and receiving will not block the calling thread.
+///
+/// # Examples
+///
+/// ```
+/// use std::thread;
+/// use nbchan::oneshot::channel;
+///
+/// // tx is the sending half (tx for transmission), and rx is the receiving
+/// // half (rx for receiving).
+/// let (tx, mut rx) = channel();
+///
+/// # fn expensive_computation() -> usize { 0 }
+/// // Spawn off an expensive computation
+/// thread::spawn(move|| {
+///     tx.send(expensive_computation()).unwrap();
+/// });
+///
+/// // Do some useful work for awhile
+///
+/// // Let's see what that answer was
+/// loop {
+///     if let Ok(v) = rx.try_recv() {
+///         println!("{:?}", v);
+///         break;
+///     }
+/// }
+/// ```
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let (shared0, shared1) = SharedBox::allocate();
     let tx = Sender(shared0);
@@ -11,9 +69,28 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     (tx, rx)
 }
 
+/// The sending-half of an asynchronous oneshot channel.
 #[derive(Debug)]
 pub struct Sender<T>(SharedBox<T>);
 impl<T> Sender<T> {
+    /// Attempts to send a value on this channel, returning it back if it could not be sent.
+    ///
+    /// This method will never block the current thread.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nbchan::oneshot::channel;
+    ///
+    /// // This send is always successful
+    /// let (tx, _rx) = channel();
+    /// tx.send(1).unwrap();
+    ///
+    /// // This send will fail because the receiver is gone
+    /// let (tx, rx) = channel();
+    /// drop(rx);
+    /// assert_eq!(tx.send(1).unwrap_err().0, 1);
+    /// ```
     pub fn send(mut self, t: T) -> Result<(), SendError<T>> {
         let new = into_raw_ptr(t);
         let old = self.0.swap(new);
@@ -44,9 +121,11 @@ impl<T> Drop for Sender<T> {
 }
 unsafe impl<T: Send> Send for Sender<T> {}
 
+/// The receiving-half of an asynchronous oneshot channel.
 #[derive(Debug)]
 pub struct Receiver<T>(SharedBox<T>);
 impl<T> Receiver<T> {
+    /// Attempts to return a pending value on this receiver without blocking.
     pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
         if !self.0.is_available() {
             return Err(TryRecvError::Disconnected);
@@ -145,7 +224,6 @@ fn from_raw_ptr<T>(ptr: *mut T) -> T {
 
 #[cfg(test)]
 mod test {
-    use std::mem;
     use super::*;
 
     #[test]
@@ -159,13 +237,13 @@ mod test {
     fn send_succeeds() {
         let (tx, rx) = channel();
         tx.send(1).unwrap();
-        mem::drop(rx);
+        drop(rx);
     }
 
     #[test]
     fn send_fails() {
         let (tx, rx) = channel();
-        mem::drop(rx);
+        drop(rx);
         assert_eq!(tx.send(1), Err(SendError(1)));
     }
 
@@ -173,7 +251,7 @@ mod test {
     fn recv_fails() {
         let (tx, mut rx) = channel::<()>();
         assert_eq!(rx.try_recv(), Err(TryRecvError::Empty));
-        mem::drop(tx);
+        drop(tx);
         assert_eq!(rx.try_recv(), Err(TryRecvError::Disconnected));
     }
 

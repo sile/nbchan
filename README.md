@@ -4,6 +4,8 @@ nbchan
 Informal Benchmarks
 --------------------
 
+The version of `nbchan` is `v0.1.0`:
+
 ```sh
 $ cat /etc/lsb-release | tail -1
 DISTRIB_DESCRIPTION="Ubuntu 17.04"
