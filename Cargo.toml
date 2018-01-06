@@ -1,6 +1,6 @@
 [package]
 name = "nbchan"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Takeru Ohta <phjgt308@gmail.com>"]
 description = "Highly optimized non-blocking communication channels"
 documentation = "https://docs.rs/nbchan"
