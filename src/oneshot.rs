@@ -185,7 +185,7 @@ impl<T> SharedBox<T> {
 
     #[inline]
     pub fn is_available(&self) -> bool {
-        self.0 != ptr::null_mut()
+        !self.0.is_null()
     }
 
     #[inline]
