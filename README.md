@@ -2,7 +2,9 @@ nbchan
 ======
 
 [![Crates.io: nbchan](http://meritbadge.herokuapp.com/nbchan)](https://crates.io/crates/nbchan)
+[![Documentation](https://docs.rs/nbchan/badge.svg)](https://docs.rs/nbchan)
 [![Build Status](https://travis-ci.org/sile/nbchan.svg?branch=master)](https://travis-ci.org/sile/nbchan)
+[![Code Coverage](https://codecov.io/gh/sile/nbchan/branch/master/graph/badge.svg)](https://codecov.io/gh/sile/nbchan/branch/master)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Highly optimized non-blocking communication channels implemented in Rust.
