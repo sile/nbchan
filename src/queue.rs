@@ -50,8 +50,8 @@ impl<T> QueueTail<T> {
         }
     }
 }
-unsafe impl<T> Send for QueueTail<T> {}
-unsafe impl<T> Sync for QueueTail<T> {}
+unsafe impl<T: Send> Send for QueueTail<T> {}
+unsafe impl<T: Send> Sync for QueueTail<T> {}
 impl<T> Clone for QueueTail<T> {
     fn clone(&self) -> Self {
         QueueTail {
@@ -88,7 +88,7 @@ impl<T> QueueHead<T> {
         QueueHead { head, tail }
     }
 }
-unsafe impl<T> Send for QueueHead<T> {}
+unsafe impl<T: Send> Send for QueueHead<T> {}
 impl<T> Drop for QueueHead<T> {
     fn drop(&mut self) {
         let tail = self.tail.swap(ptr::null_mut(), Ordering::SeqCst);

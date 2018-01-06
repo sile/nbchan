@@ -53,8 +53,8 @@ impl<T> Sender<T> {
         }
     }
 }
-unsafe impl<T> Send for Sender<T> {}
-unsafe impl<T> Sync for Sender<T> {}
+unsafe impl<T: Send> Send for Sender<T> {}
+unsafe impl<T: Send> Sync for Sender<T> {}
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Self {
         Sender {
@@ -91,8 +91,8 @@ impl<T> SyncSender<T> {
         }
     }
 }
-unsafe impl<T> Send for SyncSender<T> {}
-unsafe impl<T> Sync for SyncSender<T> {}
+unsafe impl<T: Send> Send for SyncSender<T> {}
+unsafe impl<T: Send> Sync for SyncSender<T> {}
 impl<T> Clone for SyncSender<T> {
     fn clone(&self) -> Self {
         SyncSender {
@@ -129,7 +129,7 @@ impl<T> Receiver<T> {
         }
     }
 }
-unsafe impl<T> Send for Receiver<T> {}
+unsafe impl<T: Send> Send for Receiver<T> {}
 impl<T> fmt::Debug for Receiver<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Receiver {{ .. }}")
