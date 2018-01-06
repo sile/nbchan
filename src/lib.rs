@@ -2,3 +2,4 @@
 
 #![warn(missing_docs)]
 pub mod oneshot;
+mod queue;
