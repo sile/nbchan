@@ -32,6 +32,22 @@ fn create_std_mpsc(b: &mut Bencher) {
 }
 
 #[bench]
+fn clone_sender_nbchan_mpsc(b: &mut Bencher) {
+    let (tx, _rx) = mpsc::channel::<()>();
+    b.iter(|| {
+        tx.clone();
+    });
+}
+
+#[bench]
+fn clone_sender_std_mpsc(b: &mut Bencher) {
+    let (tx, _rx) = std_mpsc::channel::<()>();
+    b.iter(|| {
+        tx.clone();
+    });
+}
+
+#[bench]
 fn oneshot_failure_send_nbchan_oneshot(b: &mut Bencher) {
     b.iter(|| {
         let (tx, _) = oneshot::channel();
