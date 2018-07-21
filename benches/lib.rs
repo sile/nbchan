@@ -3,11 +3,11 @@
 extern crate nbchan;
 extern crate test;
 
+use nbchan::mpsc;
+use nbchan::oneshot::{self, TryRecvError};
 use std::sync::mpsc as std_mpsc;
 use std::thread;
 use std::time::Duration;
-use nbchan::mpsc;
-use nbchan::oneshot::{self, TryRecvError};
 use test::Bencher;
 
 #[bench]

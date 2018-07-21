@@ -1,9 +1,9 @@
 //! Multi-producer, single-consumer FIFO channel.
 use std::cell::UnsafeCell;
 use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{SendError, TryRecvError, TrySendError};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use queue::{self, QueueHead, QueueTail};
 
@@ -138,9 +138,9 @@ impl<T> fmt::Debug for Receiver<T> {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use std::mem;
     use std::sync::mpsc::{SendError, TryRecvError, TrySendError};
-    use super::*;
 
     #[test]
     fn async_channel_works() {

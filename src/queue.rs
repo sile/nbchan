@@ -1,7 +1,7 @@
 use std::mem;
 use std::ptr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::Arc;
 
 /// Lock-free FIFO queue.
 #[inline]
@@ -133,9 +133,9 @@ impl<T> Node<T> {}
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use std::mem;
     use std::thread;
-    use super::*;
 
     #[test]
     fn single_enqueuing_works() {
