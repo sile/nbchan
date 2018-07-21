@@ -31,6 +31,11 @@ impl<T> QueueTail<T> {
     }
 
     #[inline]
+    pub fn is_disconnected(&self) -> bool {
+        self.tail.load(Ordering::SeqCst).is_null()
+    }
+
+    #[inline]
     fn new(tail: *mut NodeRef<T>) -> Self {
         QueueTail {
             tail: Arc::new(AtomicPtr::new(tail)),

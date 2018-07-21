@@ -52,6 +52,11 @@ impl<T> Sender<T> {
             Ok(())
         }
     }
+
+    /// Returns `true` if the receiver has dropped, otherwise `false`.
+    pub fn is_disconnected(&self) -> bool {
+        self.tail.is_disconnected()
+    }
 }
 unsafe impl<T: Send> Send for Sender<T> {}
 unsafe impl<T: Send> Sync for Sender<T> {}
@@ -89,6 +94,11 @@ impl<T> SyncSender<T> {
         } else {
             Ok(())
         }
+    }
+
+    /// Returns `true` if the receiver has dropped, otherwise `false`.
+    pub fn is_disconnected(&self) -> bool {
+        self.inner.is_disconnected()
     }
 }
 unsafe impl<T: Send> Send for SyncSender<T> {}
@@ -145,6 +155,7 @@ mod test {
     #[test]
     fn async_channel_works() {
         let (tx, rx) = channel::<usize>();
+        assert!(!tx.is_disconnected());
         assert_eq!(rx.try_recv(), Err(TryRecvError::Empty));
 
         assert_eq!(tx.send(3), Ok(()));
@@ -155,11 +166,13 @@ mod test {
 
         let (tx, _) = channel::<usize>();
         assert_eq!(tx.send(3), Err(SendError(3)));
+        assert!(tx.is_disconnected());
     }
 
     #[test]
     fn sync_channel_works() {
         let (tx, rx) = sync_channel::<usize>(1);
+        assert!(!tx.is_disconnected());
         assert_eq!(rx.try_recv(), Err(TryRecvError::Empty));
 
         assert_eq!(tx.try_send(3), Ok(()));
@@ -173,5 +186,6 @@ mod test {
 
         let (tx, _) = sync_channel::<usize>(1);
         assert_eq!(tx.try_send(3), Err(TrySendError::Disconnected(3)));
+        assert!(tx.is_disconnected());
     }
 }
